@@ -1,11 +1,10 @@
 package usecase
 
 import (
+	"github.com/majidzarephysics/go-jwt/pkg/jwt"
 	"math"
 	"math/rand"
-	"regexp"
 	"strconv"
-	"strings"
 	"sudoku/internal/domain"
 )
 
@@ -27,51 +26,84 @@ func (a *userUsecase) SignUp(user *domain.User) error {
 	return nil
 }
 
-func (a *userUsecase) SignIn(password, email string) (domain.User, error) {
-	u, err := a.UserRepo.SignIn(password, email)
+func (a *userUsecase) SignIn(password, email string) (domain.UserResponse, error) {
+	user, err := a.UserRepo.SignIn(password, email)
 	if err != nil {
-		return domain.User{}, err
+		return domain.UserResponse{}, err
+	}
+	if user.PassWord != password {
+		return domain.UserResponse{}, nil
+	}
+	jwtsig, errs := jwt.GenerateJWTSigned(user)
+	if errs != nil {
+		return domain.UserResponse{}, errs
+	}
+	u := domain.UserResponse{
+		UserName: user.UserName,
+		Email:    user.Email,
+		Token:    jwtsig,
 	}
 	return u, nil
 }
 
-func (a *userUsecase) Account(username string) (domain.User, error) {
+func (a *userUsecase) Account(username string) (domain.UserResponse, error) {
 	user, err := a.UserRepo.Account(username)
 	if err != nil {
-		return domain.User{}, err
+		return domain.UserResponse{}, err
 	}
-	return user, nil
+	u := domain.UserResponse{
+		UserName: user.UserName,
+		Email: user.Email,
+	}
+	return u, nil
 }
 
-func (a *userUsecase) Save(board *domain.Board) (int, error) {
-	b, err := a.UserRepo.Load(board.Defaultid)
+func (a *userUsecase) Save(board *domain.Board, username string) (*domain.Board, error) {
+	b, err := a.UserRepo.Load(board.ID)
 	if err != nil {
-		return 0, err
+		return &domain.Board{}, err
+	}
+	if b.Username != username {
+		return &domain.Board{}, nil
 	}
 	if b.Defaultid != 0 {
 		if err := a.UserRepo.Save(board); err != nil {
-			return b.ID, err
+			return &domain.Board{}, err
 		}
 	}
-	board.Defaultid = b.ID
 	board.ID = 0
-	if err := a.UserRepo.CreateBoard(board); err != nil {
-		return 0, err
+	b2, err := a.UserRepo.CreateBoard(board)
+	if err != nil {
+		return &domain.Board{}, err
 	}
-	return board.ID, nil
+	return b2, nil
 }
 
-func (a *userUsecase) Load(ID int) (domain.Board, error) {
-	b, err := a.UserRepo.Load(ID)
+func (a *userUsecase) Load(id int, username string) (domain.Board, error) {
+	b, err := a.UserRepo.Load(id)
 	if err != nil {
 		return domain.Board{}, err
 	}
+	if b.Username != username {
+		return domain.Board{}, nil
+	}
+
 	return b, nil
 }
 
-func (a *userUsecase) Clear(board *domain.Board) (*domain.Board, error) {
-	b, err := a.UserRepo.Load(board.Defaultid)
+func (a *userUsecase) Clear(id int, username string) (*domain.Board, error) {
+	b, err := a.UserRepo.Load(id)
 	if err != nil {
+		return &domain.Board{}, err
+	}
+	if b.Username != username {
+		return &domain.Board{}, nil
+	}
+	b, err = a.UserRepo.Load(b.Defaultid)
+	if err != nil {
+		return &domain.Board{}, err
+	}
+	if err := a.UserRepo.Remove(id); err != nil {
 		return &domain.Board{}, err
 	}
 	return &b, nil
@@ -79,94 +111,93 @@ func (a *userUsecase) Clear(board *domain.Board) (*domain.Board, error) {
 
 func (a *userUsecase) Submit(board *domain.Board) (*domain.Board, error) {
 	board = Check(board)
-	if err := a.UserRepo.Save(board); err != nil {
+	b, err := a.Save(board, board.Username)
+	if err != nil {
 		return &domain.Board{}, err
 	}
+	board.ID = b.ID
 	return board, nil
 }
 
 func (a *userUsecase) CreateBoard(number *domain.Board, username string) (*domain.Board, error) {
 	board := makeboard(number)
 	board.Username = username
-	err := a.UserRepo.CreateBoard(board)
+	b, err := a.UserRepo.CreateBoard(board)
 	if err != nil {
 		return &domain.Board{}, err
 	}
-	return board, nil
-}
-
-func Delete(board *domain.Board) *domain.Board {
-	b := board.BoardData
-	re := regexp.MustCompile(".")
-	b = re.ReplaceAllString(b, "0")
-	return &domain.Board{BoardData: b}
+	b.Defaultid = b.ID
+	return b, nil
 }
 
 func Check(board *domain.Board) *domain.Board {
 	ebox, boxes := float64(board.Ebox), float64(board.Boxes)
 	n := int(math.Sqrt(boxes) * math.Sqrt(ebox))
 	str := board.BoardData
-	span := int(math.Pow(float64(n), 2))
+	span := n * n + n
 	//vertical
 	for j := 0; j < n; j++ {
 		m := make(map[int]int)
-		list := make([]int, 0)
-		for i := 0; i < span; i++ {
+		span2 := j + n * n
+		for i := 0; i < span2; i++{
 			x, _ := strconv.Atoi(string(str[i+j]))
-			list = append(list, x)
+			m[x] += 1
 			i = i + n
 		}
-		for k := range list {
-			m[k] += 1
-		}
-		for k := range m {
-			if m[k] > 1 {
-				str = strings.ReplaceAll(str, string(str[k]), "0")
+		for i := 0; i < span2; i++{
+			x, _ := strconv.Atoi(string(str[i+j]))
+			if x != 0 {
+				if m[x] > 1 {
+					str = replace(str, i+j)
+				}
 			}
+			i = i + n
 		}
 	}
 	//horizontal
 	for i := 0; i < span; i++ {
 		m := make(map[int]int)
-		list := make([]int, 0)
 		for j := 0; j < n; j++ {
 			x, _ := strconv.Atoi(string(str[i+j]))
-			list = append(list, x)
+			m[x] += 1
 		}
-		i = i + n
-		for k := range list {
-			m[k] += 1
-		}
-		for k := range m {
-			if m[k] > 1 {
-				str = strings.ReplaceAll(str, string(str[k]), "0")
+		for j := 0; j < n; j++{
+			x, _ := strconv.Atoi(string(str[i+j]))
+			if x != 0 {
+				if m[x] > 1 {
+					str = replace(str, i+j)
+				}
 			}
 		}
+		i = i + n
 	}
 	//box check
-	//even boxes
-	for i := 0; i < int(boxes); i++ {
+	for j := 0; j < n; j++ {
 		m := make(map[int]int)
-		list := make([]int, 0)
 		span := int(math.Sqrt(ebox))
-		for j := 0; j < span; j++ {
-			for l := 0; l < int(math.Pow(float64(n), 2)); l++ {
+		scale := (n + 1) * span
+		for i := 0; i < n * n + 1; i++{
+			for l := 0; l < scale; l++ {
 				for k := 0; k < span; k++ {
-					x, _ := strconv.Atoi(string(str[k+l+j+i]))
-					list = append(list, x)
+					x, _ := strconv.Atoi(string(str[j+i+l+k]))
+					m[x] += 1
 				}
 				l = l + n
 			}
-			for k := range list {
-				m[k] += 1
-			}
-			for k := range m {
-				if m[k] > 1 {
-					str = strings.ReplaceAll(str, string(str[k]), "0")
+			for l := 0; l < scale; l++ {
+				for k := 0; k < span; k++ {
+					x, _ := strconv.Atoi(string(str[j+i+l+k]))
+					if x != 0 {
+						if m[x] > 1 {
+							str = replace(str, j+k+l)
+						}
+					}
 				}
+				l = l + n
 			}
+			i = i + (n + 1) * 3 - 1
 		}
-		i = i + (n * span)
+		j = j + span - 1
 	}
 	board.BoardData = str
 	return board
@@ -193,18 +224,18 @@ func makeboard(board *domain.Board) *domain.Board {
 	}
 	for i := 0; i < n; i++ {
 		for j := 0; j < n; j++ {
-			if j == random2[l] && l < 8 {
-				str = str + " " + strconv.Itoa(randInt[e]) + " "
+			if j == random2[l] && l < n-1 {
+				str = str + strconv.Itoa(randInt[e])
 				l += 1
 				e += 1
+			}else {
+				str = str + "0"
 			}
-			str = str + " 0 "
 		}
 		str = str + "\n"
 	}
 	str = Check(&domain.Board{BoardData: str}).BoardData
 	board.BoardData = str
-	board.Defaultid = board.ID
 
 	return board
 }
@@ -229,4 +260,9 @@ func zero(l []int) []int {
 		}
 	}
 	return l
+}
+
+func replace(str string, n int) string {
+	str = str[:n] + "0" + str[n+1:]
+	return str
 }

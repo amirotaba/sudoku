@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 	"log"
 	"sudoku/internal/domain"
-	"sudoku/internal/user/delivery/httpd"
+	"sudoku/internal/user/delivery/httpdeliver"
 	mysqlp "sudoku/internal/user/repository/mysql"
 	"sudoku/internal/user/usecase"
 )
@@ -25,5 +25,5 @@ func main() {
 	r := echo.New()
 	ur := mysqlp.NewMysqlUserRepository(Db)
 	uu := usecase.NewUserUsecase(ur)
-	httpd.NewUserHandler(r, uu)
+	httpdeliver.NewUserHandler(r, uu)
 }

@@ -1,8 +1,7 @@
-package httpd
+package httpdeliver
 
 import (
 	"github.com/labstack/echo/v4"
-	"runtime"
 	"strconv"
 	"sudoku/internal/domain"
 )
@@ -28,47 +27,39 @@ func NewUserHandler(e *echo.Echo, us domain.UserUsecase) {
 }
 
 func (m *UserHandler) SignUp(e echo.Context) error {
-	user := new(domain.User)
+	var user domain.User
 	if err := e.Bind(user); err != nil {
 		return err
 	}
-	m.AUsecase.SignUp(user)
-	msg := &domain.Message{
+	if err := m.AUsecase.SignUp(&user); err != nil {
+		return err
+	}
+	u := domain.UserResponse{UserName: user.UserName, Email: user.Email}
+	msg := &domain.AuthMessage{
 		Text:     "you logged in as, ",
-		UserInfo: user,
-		Device:   runtime.GOOS,
+		UserInfo: &u,
 	}
 	return e.JSON(200, msg)
 }
 
 func (m *UserHandler) SignIn(e echo.Context) error {
-	loginform := new(domain.LoginForm)
-	if err := e.Bind(loginform); err != nil {
+	loginForm := new(domain.LoginForm)
+	if err := e.Bind(loginForm); err != nil {
 		return err
 	}
-	user, err := m.AUsecase.SignIn(loginform.PassWord, loginform.Email)
-	if err == nil {
-		if user.PassWord == loginform.PassWord {
-			//jwt
-			//if errs != nil {
-			//	fmt.Println(errs)
-			//}
-			msg := &domain.Message{
-				Text:     "you logged in successfuly",
-				UserInfo: &user,
-				//Token: jwttoken,
-			}
-			return e.JSON(200, msg)
-		} else {
-			msg := &domain.Message{
-				Text: "incorrect password",
-			}
-			return e.JSON(200, msg)
-		}
+	u, err := m.AUsecase.SignIn(loginForm.PassWord, loginForm.Email)
+	if err != nil {
+		return err
 	}
-	msg := &domain.Message{
-		Text: "User not found",
-		Err:  err.Error(),
+	if u.UserName == "" {
+		msg := domain.AuthMessage{
+			Text: "incorrect password",
+		}
+		return e.JSON(200, msg)
+	}
+	msg := domain.AuthMessage{
+		Text:     "you logged in successfully",
+		UserInfo: &u,
 	}
 	return e.JSON(200, msg)
 }
@@ -77,13 +68,12 @@ func (m *UserHandler) Account(e echo.Context) error {
 	username := e.Param("username")
 	user, err := m.AUsecase.Account(username)
 	if err != nil {
-		msg := &domain.Message{
+		msg := &domain.AuthMessage{
 			Text: "User not found",
-			Err:  err.Error(),
 		}
 		return e.JSON(200, msg)
 	}
-	msg := &domain.Message{
+	msg := &domain.AuthMessage{
 		Text:     "User info: ",
 		UserInfo: &user,
 	}
@@ -92,36 +82,26 @@ func (m *UserHandler) Account(e echo.Context) error {
 
 func (m *UserHandler) Save(e echo.Context) error {
 	board := new(domain.Board)
-	b2 := new(domain.Board)
 	username := e.Param("username")
 	if err := e.Bind(board); err != nil {
 		return err
 	}
-	b, err := m.AUsecase.Load(board.ID)
+	b, err := m.AUsecase.Save(board, username)
 	if err != nil {
-		msg := &domain.Message{
+		msg := &domain.GameMessage{
 			Text: "board not found",
 		}
 		return e.JSON(200, msg)
 	}
-	if b.Username != username {
-		msg := &domain.Message{
+	if b.Username == "" {
+		msg := &domain.GameMessage{
 			Text: "this board doesn't belong to you",
 		}
 		return e.JSON(200, msg)
 	}
-	board.ID = b2.ID
-	id, err := m.AUsecase.Save(board)
-	if err != nil {
-		msg := &domain.Message{
-			Text: "Saving failed",
-			Err:  err.Error(),
-		}
-		return e.JSON(200, msg)
-	}
-	msg := &domain.Message{
-		Text:    "board saved successfully, remember the board id for loading",
-		BoardID: id,
+	msg := &domain.GameMessage{
+		Text:    "board saved successfully, remember the board id for reload",
+		Board: b,
 	}
 	return e.JSON(200, msg)
 }
@@ -129,20 +109,20 @@ func (m *UserHandler) Save(e echo.Context) error {
 func (m *UserHandler) Load(e echo.Context) error {
 	id, _ := strconv.Atoi(e.Param("id"))
 	username := e.Param("username")
-	b, err := m.AUsecase.Load(id)
+	b, err := m.AUsecase.Load(id, username)
 	if err != nil {
-		msg := &domain.Message{
+		msg := &domain.GameMessage{
 			Text: "board not found",
 		}
 		return e.JSON(200, msg)
 	}
-	if b.Username != username {
-		msg := &domain.Message{
+	if b.Username == "" {
+		msg := &domain.GameMessage{
 			Text: "this board doesn't belong to you",
 		}
 		return e.JSON(200, msg)
 	}
-	msg := &domain.Message{
+	msg := &domain.GameMessage{
 		Text:  "board loaded successfully",
 		Board: &b,
 	}
@@ -150,15 +130,19 @@ func (m *UserHandler) Load(e echo.Context) error {
 }
 
 func (m *UserHandler) Clear(e echo.Context) error {
-	board := new(domain.Board)
-	b, err := m.AUsecase.Clear(board)
+	id, _ := strconv.Atoi(e.Param("id"))
+	username := e.Param("username")
+	b, err := m.AUsecase.Clear(id, username)
 	if err != nil {
-		msg := &domain.Message{
-			Text: "clearing failed",
+		return err
+	}
+	if b.Username == "" {
+		msg := &domain.GameMessage{
+			Text: "this board doesn't belong to you",
 		}
 		return e.JSON(200, msg)
 	}
-	msg := &domain.Message{
+	msg := &domain.GameMessage{
 		Text:  "board cleared successfully",
 		Board: b,
 	}
@@ -167,16 +151,18 @@ func (m *UserHandler) Clear(e echo.Context) error {
 
 func (m *UserHandler) Submit(e echo.Context) error {
 	board := new(domain.Board)
+	if err := e.Bind(board); err != nil {
+		return err
+	}
 	b, err := m.AUsecase.Submit(board)
 	if err != nil {
-		msg := &domain.Message{
-			Text: "submition failed",
-			Err:  err.Error(),
+		msg := &domain.GameMessage{
+			Text: "submit failed",
 		}
 		return e.JSON(200, msg)
 	}
-	msg := &domain.Message{
-		Text:  "wrong numbers colored as red",
+	msg := &domain.GameMessage{
+		Text:  "wrong numbers are deleted, remember the id for reload",
 		Board: b,
 	}
 	return e.JSON(200, msg)
@@ -190,13 +176,12 @@ func (m *UserHandler) CreateBoard(e echo.Context) error {
 	}
 	b, err := m.AUsecase.CreateBoard(board, username)
 	if err != nil {
-		msg := &domain.Message{
+		msg := &domain.GameMessage{
 			Text: "Creation failed",
-			Err:  err.Error(),
 		}
 		return e.JSON(200, msg)
 	}
-	msg := &domain.Message{
+	msg := &domain.GameMessage{
 		Text:  "Board created successfully",
 		Board: b,
 	}

@@ -9,14 +9,16 @@ type User struct {
 	Email    string `json:"email"`
 }
 
-type Number struct {
-	Ebox  int
-	Boxes int
+type UserResponse struct {
+	gorm.Model
+	UserName string `json:"user_name"`
+	Email    string `json:"email"`
+	Token    string
 }
 
 type LoginForm struct {
-	PassWord string `json:"pass_word"`
 	Email    string `json:"email"`
+	PassWord string `json:"pass_word"`
 }
 
 type Board struct {
@@ -28,31 +30,35 @@ type Board struct {
 	BoardData string `json:"boarddata"`
 }
 
-type Message struct {
+type AuthMessage struct {
 	Text     string
-	UserInfo *User
-	Device   string
+	UserInfo *UserResponse
 	Token    string
-	Err      string
+}
+
+type GameMessage struct {
+	Text     string
 	Board    *Board
 	BoardID  int
 }
+
 type UserRepository interface {
 	SignUp(newuser *User) error
 	SignIn(password, email string) (User, error)
 	Account(username string) (User, error)
 	Save(board *Board) error
 	Load(boardID int) (Board, error)
-	CreateBoard(board *Board) error
+	Remove(id int) error
+	CreateBoard(board *Board) (*Board, error)
 }
 
 type UserUsecase interface {
 	SignUp(newuser *User) error
-	SignIn(password, email string) (User, error)
-	Account(username string) (User, error)
-	Save(board *Board) (int, error)
-	Load(boardID int) (Board, error)
-	Clear(board *Board) (*Board, error)
+	SignIn(password, email string) (UserResponse, error)
+	Account(username string) (UserResponse, error)
+	Save(board *Board, username string) (*Board, error)
+	Load(boardID int, username string) (Board, error)
+	Clear(id int, username string) (*Board, error)
 	Submit(board *Board) (*Board, error)
 	CreateBoard(board *Board, username string) (*Board, error)
 }
