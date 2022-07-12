@@ -27,11 +27,11 @@ func NewUserHandler(e *echo.Echo, us domain.UserUsecase) {
 }
 
 func (m *UserHandler) SignUp(e echo.Context) error {
-	var user domain.User
+	user := new(domain.User)
 	if err := e.Bind(user); err != nil {
 		return err
 	}
-	if err := m.AUsecase.SignUp(&user); err != nil {
+	if err := m.AUsecase.SignUp(user);err != nil {
 		return err
 	}
 	u := domain.UserResponse{UserName: user.UserName, Email: user.Email}

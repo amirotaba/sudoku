@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"github.com/majidzarephysics/go-jwt/pkg/jwt"
 	"math"
 	"math/rand"
@@ -19,8 +20,13 @@ func NewUserUsecase(a domain.UserRepository) domain.UserUsecase {
 }
 
 func (a *userUsecase) SignUp(user *domain.User) error {
-	err := a.UserRepo.SignUp(user)
-	if err != nil {
+	if _, err := a.UserRepo.Account(user.UserName); err == nil {
+		return errors.New("this username is taken")
+	}
+	if _, err := a.UserRepo.SignIn("1", user.Email); err == nil {
+		return errors.New("this email is used")
+	}
+	if err := a.UserRepo.SignUp(user); err != nil {
 		return err
 	}
 	return nil
@@ -110,7 +116,7 @@ func (a *userUsecase) Clear(id int, username string) (*domain.Board, error) {
 }
 
 func (a *userUsecase) Submit(board *domain.Board) (*domain.Board, error) {
-	board = Check(board)
+	board = check(board)
 	b, err := a.Save(board, board.Username)
 	if err != nil {
 		return &domain.Board{}, err
@@ -130,7 +136,7 @@ func (a *userUsecase) CreateBoard(number *domain.Board, username string) (*domai
 	return b, nil
 }
 
-func Check(board *domain.Board) *domain.Board {
+func check(board *domain.Board) *domain.Board {
 	ebox, boxes := float64(board.Ebox), float64(board.Boxes)
 	n := int(math.Sqrt(boxes) * math.Sqrt(ebox))
 	str := board.BoardData
@@ -234,7 +240,7 @@ func makeboard(board *domain.Board) *domain.Board {
 		}
 		str = str + "\n"
 	}
-	str = Check(&domain.Board{BoardData: str}).BoardData
+	str = check(&domain.Board{BoardData: str}).BoardData
 	board.BoardData = str
 
 	return board

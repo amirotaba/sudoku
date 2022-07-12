@@ -7,7 +7,7 @@ import (
 	"log"
 	"sudoku/internal/domain"
 	"sudoku/internal/user/delivery/httpdeliver"
-	mysqlp "sudoku/internal/user/repository/mysql"
+	"sudoku/internal/user/repository/mysqlHandler"
 	"sudoku/internal/user/usecase"
 )
 
@@ -23,7 +23,7 @@ func main() {
 	_ = Db.AutoMigrate(&domain.User{})
 	_ = Db.AutoMigrate(&domain.Board{})
 	r := echo.New()
-	ur := mysqlp.NewMysqlUserRepository(Db)
+	ur := mysqlHandler.NewMysqlUserRepository(Db)
 	uu := usecase.NewUserUsecase(ur)
 	httpdeliver.NewUserHandler(r, uu)
 }
