@@ -45,7 +45,7 @@ func (m *mysqlUserRepository) Save(board *domain.Board) error {
 
 func (m *mysqlUserRepository) Load(id int) (domain.Board, error) {
 	var board domain.Board
-	if err := m.Conn.Where("id = ?", id).First(&board).Error; err != nil {
+	if err := m.Conn.Where("id = ?", id).First(&board).Error; err != nil 		{
 		return domain.Board{}, err
 	}
 	return board, nil

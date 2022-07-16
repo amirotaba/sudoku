@@ -31,13 +31,14 @@ func (m *UserHandler) SignUp(e echo.Context) error {
 	if err := e.Bind(user); err != nil {
 		return err
 	}
-	if err := m.AUsecase.SignUp(user);err != nil {
+	if err := m.AUsecase.SignUp(user); err != nil {
 		return err
 	}
 	u := domain.UserResponse{UserName: user.UserName, Email: user.Email}
-	msg := &domain.AuthMessage{
-		Text:     "you logged in as, ",
-		UserInfo: &u,
+	msg := &domain.SignUpMessage{
+		Text:     "you signed up as, ",
+		UserName: u.UserName,
+		Email:    u.Email,
 	}
 	return e.JSON(200, msg)
 }
@@ -52,10 +53,7 @@ func (m *UserHandler) SignIn(e echo.Context) error {
 		return err
 	}
 	if u.UserName == "" {
-		msg := domain.AuthMessage{
-			Text: "incorrect password",
-		}
-		return e.JSON(200, msg)
+		return e.JSON(200, "incorrect password")
 	}
 	msg := domain.AuthMessage{
 		Text:     "you logged in successfully",
@@ -68,14 +66,12 @@ func (m *UserHandler) Account(e echo.Context) error {
 	username := e.Param("username")
 	user, err := m.AUsecase.Account(username)
 	if err != nil {
-		msg := &domain.AuthMessage{
-			Text: "User not found",
-		}
-		return e.JSON(200, msg)
+		return e.JSON(200, "User not found")
 	}
-	msg := &domain.AuthMessage{
+	msg := &domain.SignUpMessage{
 		Text:     "User info: ",
-		UserInfo: &user,
+		UserName: user.UserName,
+		Email:    user.Email,
 	}
 	return e.JSON(200, msg)
 }
@@ -100,7 +96,7 @@ func (m *UserHandler) Save(e echo.Context) error {
 		return e.JSON(200, msg)
 	}
 	msg := &domain.GameMessage{
-		Text:    "board saved successfully, remember the board id for reload",
+		Text:  "board saved successfully, remember the board id for reload",
 		Board: b,
 	}
 	return e.JSON(200, msg)

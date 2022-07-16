@@ -59,7 +59,7 @@ func (a *userUsecase) Account(username string) (domain.UserResponse, error) {
 	}
 	u := domain.UserResponse{
 		UserName: user.UserName,
-		Email: user.Email,
+		Email:    user.Email,
 	}
 	return u, nil
 }
@@ -77,6 +77,7 @@ func (a *userUsecase) Save(board *domain.Board, username string) (*domain.Board,
 			return &domain.Board{}, err
 		}
 	}
+	board.Defaultid = board.ID
 	board.ID = 0
 	b2, err := a.UserRepo.CreateBoard(board)
 	if err != nil {
@@ -140,17 +141,17 @@ func check(board *domain.Board) *domain.Board {
 	ebox, boxes := float64(board.Ebox), float64(board.Boxes)
 	n := int(math.Sqrt(boxes) * math.Sqrt(ebox))
 	str := board.BoardData
-	span := n * n + n
+	span := n*n + n
 	//vertical
 	for j := 0; j < n; j++ {
 		m := make(map[int]int)
-		span2 := j + n * n
-		for i := 0; i < span2; i++{
+		span2 := j + n*n
+		for i := 0; i < span2; i++ {
 			x, _ := strconv.Atoi(string(str[i+j]))
 			m[x] += 1
 			i = i + n
 		}
-		for i := 0; i < span2; i++{
+		for i := 0; i < span2; i++ {
 			x, _ := strconv.Atoi(string(str[i+j]))
 			if x != 0 {
 				if m[x] > 1 {
@@ -167,7 +168,7 @@ func check(board *domain.Board) *domain.Board {
 			x, _ := strconv.Atoi(string(str[i+j]))
 			m[x] += 1
 		}
-		for j := 0; j < n; j++{
+		for j := 0; j < n; j++ {
 			x, _ := strconv.Atoi(string(str[i+j]))
 			if x != 0 {
 				if m[x] > 1 {
@@ -182,7 +183,7 @@ func check(board *domain.Board) *domain.Board {
 		m := make(map[int]int)
 		span := int(math.Sqrt(ebox))
 		scale := (n + 1) * span
-		for i := 0; i < n * n + 1; i++{
+		for i := 0; i < n*n+1; i++ {
 			for l := 0; l < scale; l++ {
 				for k := 0; k < span; k++ {
 					x, _ := strconv.Atoi(string(str[j+i+l+k]))
@@ -201,7 +202,7 @@ func check(board *domain.Board) *domain.Board {
 				}
 				l = l + n
 			}
-			i = i + (n + 1) * 3 - 1
+			i = i + (n+1)*3 - 1
 		}
 		j = j + span - 1
 	}
@@ -234,7 +235,7 @@ func makeboard(board *domain.Board) *domain.Board {
 				str = str + strconv.Itoa(randInt[e])
 				l += 1
 				e += 1
-			}else {
+			} else {
 				str = str + "0"
 			}
 		}

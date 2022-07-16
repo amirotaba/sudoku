@@ -10,7 +10,6 @@ type User struct {
 }
 
 type UserResponse struct {
-	gorm.Model
 	UserName string `json:"user_name"`
 	Email    string `json:"email"`
 	Token    string
@@ -33,13 +32,17 @@ type Board struct {
 type AuthMessage struct {
 	Text     string
 	UserInfo *UserResponse
-	Token    string
+}
+
+type SignUpMessage struct {
+	Text     string
+	UserName string
+	Email    string
 }
 
 type GameMessage struct {
-	Text     string
-	Board    *Board
-	BoardID  int
+	Text  string
+	Board *Board
 }
 
 type UserRepository interface {
